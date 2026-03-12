@@ -458,11 +458,8 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 pid = get_pid(pkg)
                 self.send_json({"pid": pid, "running": pid is not None})
 
-            elif path.startswith("/launch/"):
-                if not self._check_rate("control"):
-                    self.send_error_json(429, "Rate limit exceeded")
-                    return
-                pkg = path[8:]
+            elif path.startswith("/activity/"):
+                pkg = path[10:]
                 if not _valid_package(pkg):
                     self.send_error_json(400, "Invalid package name")
                     return
@@ -470,19 +467,7 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
                 if not activity:
                     self.send_error_json(404, f"Main activity not found for {pkg}")
                     return
-                run_async(["am", "start", "-n", activity, "-W"])
-                self.send_json({"launched": pkg, "activity": activity})
-
-            elif path.startswith("/kill/"):
-                if not self._check_rate("control"):
-                    self.send_error_json(429, "Rate limit exceeded")
-                    return
-                pkg = path[6:]
-                if not _valid_package(pkg):
-                    self.send_error_json(400, "Invalid package name")
-                    return
-                run_cmd(["am", "force-stop", pkg])
-                self.send_json({"killed": pkg})
+                self.send_json({"pkg": pkg, "activity": activity})
 
             elif path == "/screenshot":
                 if not self._check_rate("control"):
@@ -548,6 +533,32 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/upload":
             self._handle_upload()
+
+        elif path.startswith("/launch/"):
+            if not self._check_rate("control"):
+                self.send_error_json(429, "Rate limit exceeded")
+                return
+            pkg = path[8:]
+            if not _valid_package(pkg):
+                self.send_error_json(400, "Invalid package name")
+                return
+            activity = find_main_activity(pkg)
+            if not activity:
+                self.send_error_json(404, f"Main activity not found for {pkg}")
+                return
+            run_async(["am", "start", "-n", activity, "-W"])
+            self.send_json({"launched": pkg, "activity": activity})
+
+        elif path.startswith("/kill/"):
+            if not self._check_rate("control"):
+                self.send_error_json(429, "Rate limit exceeded")
+                return
+            pkg = path[6:]
+            if not _valid_package(pkg):
+                self.send_error_json(400, "Invalid package name")
+                return
+            run_cmd(["am", "force-stop", pkg])
+            self.send_json({"killed": pkg})
         else:
             self.send_error_json(404, "Not found")
 

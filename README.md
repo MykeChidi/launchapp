@@ -1,226 +1,177 @@
-# launchapp
+# `launchapp`
 
-Android debug toolkit for Termux. Full logcat sessions, crash watching, performance dashboards, and network monitoring — on your phone or a remote one — with identical commands either way.
+Termux-native Android debug toolkit — local and remote app monitoring, crash detection, performance profiling, and network inspection from your phone.
 
-```bash
-launchapp chrome debug                            # debug Chrome on this phone
-launchapp -r --connect 192.168.1.42 chrome debug  # debug Chrome on that phone
-```
-
-Same 6-window tmux session. Same control REPL. Same output. The modes are transport-agnostic — they have no idea whether they're running locally or remotely.
-
----
-
-## Install
-
-Install from source:
 
 ```bash
-git clone https://github.com/MykeChidi/launchapp
-cd launchapp && bash install.sh
-```
-
-For remote debugging, also install:
-
-```bash
-pkg install curl jq nmap android-tools termux-api
-```
-
-> **Termux must come from F-Droid**, not the Play Store. The Play Store version is abandoned and has broken packages.
-
----
-
-## Quick start
-
-```bash
-launchapp list                        # see all installed apps
-launchapp chrome debug                # 6-window debug session
-launchapp myapp crash --watch         # crash watcher, auto-restart on FATAL/ANR
-launchapp youtube perf                # live performance dashboard
-launchapp com.example.myapp info      # version, permissions, activities
+launchapp chrome debug
+launchapp spotify crash --watch
+launchapp -r --connect 192.168.1.42 com.example.myapp perf
 ```
 
 ---
 
-## Modes
+## What it does
 
-Every mode works identically across all three transports.
+launchapp wraps Android's `am`, `pm`, `logcat`, and `dumpsys` commands into structured tmux sessions and live monitors. It runs entirely on Android via Termux — no desktop required.
 
-| Mode | What opens |
-|---|---|
-| `debug` | 6-window tmux: Logs, Errors, Activity, Crashes, Perf, Network |
-| `monitor` | 2-pane live monitor with keyboard controls |
-| `crash` | Foreground watcher — push notification + vibrate on FATAL/ANR |
-| `perf` | Memory, GC events, battery — refreshes every 3s |
-| `network` | Logcat network sniffer — no root required |
-| `info` | Version, permissions, and activities from `pm dump` |
-| `top` | Live running app list with memory usage |
-| `launch` | Just launch the app |
+**Three connection modes:**
 
----
+| Mode | How it works | Setup |
+|------|-------------|-------|
+| **Local** | Runs directly on the device you're holding | Zero setup |
+| **ADB wireless** | Connects to another phone over WiFi via `adb` | One-time pairing |
+| **Agent** | Lightweight Python HTTP server on the target phone | Run `launchapp -r --agent` once |
 
-## Transports
+**Debug modes:**
 
-| Transport | How | Logcat |
-|---|---|---|
-| `local` | Direct `am`/`pm`/`logcat` on this phone | Live stream |
-| `adb` | ADB wireless — `adb -s DEVICE shell …` | Live stream |
-| `agent` | HTTP — `curl http://DEVICE:PORT/…` | 2s poll |
-
-> ADB and local have 100% feature parity. Agent transport is ~95% — the only gap is logcat polled every 2 seconds instead of streamed.
-
----
-
-## Remote debugging
-
-### Agent transport
-
-Run this on the **target phone** (the one you want to debug):
-
-```bash
-launchapp-agent --gen-token          # generate a token
-export LAUNCHAPP_TOKEN='your-token'
-launchapp -r --agent                 # start the agent
-# prints: Listen: http://192.168.1.42:8765
-```
-
-Then on the **controller phone**:
-
-```bash
-export LAUNCHAPP_TOKEN='your-token'  # same token
-launchapp -r --connect 192.168.1.42 chrome debug
-```
-
-### ADB wireless transport
-
-On the **target phone**: Settings → Developer Options → Wireless Debugging → Enable → Pair device with pairing code.
-
-On the **controller phone**:
-
-```bash
-launchapp -r scan       # interactive scan + pairing
-# or connect directly:
-launchapp -r --adb 192.168.1.42:5555 chrome debug
-```
-
----
-
-## App argument
-
-`<app>` resolves in this order: custom alias → built-in alias → full package name.
-
-```bash
-launchapp chrome debug                  # built-in alias
-launchapp myapp debug                   # your custom alias
-launchapp com.example.myapp debug       # full package name
-```
-
-Built-in aliases: `chrome` `youtube` `spotify` `gmail` `maps` `whatsapp` `telegram` `instagram` `twitter` `netflix` `settings` `camera` `files` `clock` `contacts` `dialer` `messages` `photos` `drive` `meet` `tiktok` `discord` `reddit` `snapchat` `linkedin` `zoom` `vlc` `firefox`
-
-Add your own:
-
-```bash
-launchapp alias add myapp com.example.myapp
-launchapp alias add myapp com.example.myapp/.ui.MainActivity   # specific activity
-launchapp alias list
-launchapp alias remove myapp
-```
-
----
-
-## All commands
-
-```
-launchapp <app> [mode] [options]
-launchapp list [filter]
-launchapp top
-launchapp attach [session]
-launchapp history
-launchapp alias add|remove|list [name] [pkg]
-launchapp cache clear [package]
-
-launchapp -r --connect IP[:PORT] [app] [mode] [options]
-launchapp -r --adb DEVICE_ID [app] [mode] [options]
-launchapp -r --connect IP[:PORT]          interactive menu
-launchapp -r                              scan / pick saved device
-launchapp -r --agent                      start agent on this phone
-launchapp -r scan                         nmap scan + onboarding
-```
-
-**Options:**
-
-| Flag | Description |
-|---|---|
-| `--save` | Save logs to `~/launchapp_logs/` |
-| `--watch` | Auto-restart app after crash (crash mode) |
-| `--token TOKEN` | Agent auth token |
-| `-v` | Verbose output |
-
----
-
-## Authentication
-
-The agent requires a token. Without one it refuses to start.
-
-```bash
-launchapp-agent --gen-token
-# → Generated token: a3f8c2d1e4b56789…
-
-export LAUNCHAPP_TOKEN='a3f8c2d1e4b56789…'
-```
-
-Set the same token on both phones. Add it to `~/.bashrc` to make it permanent:
-
-```bash
-echo "export LAUNCHAPP_TOKEN=\$(cat ~/.launchapp/token)" >> ~/.bashrc
-```
-
-To run without authentication on a private network only:
-
-```bash
-launchapp-agent --no-auth
-```
-
----
-
-## Environment variables
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `LAUNCHAPP_TOKEN` | — | Agent auth token |
-| `LAUNCHAPP_CONFIG_DIR` | `~/.launchapp` | Config, aliases, device registry, cache |
-| `LAUNCHAPP_LOG_DIR` | `~/launchapp_logs` | Log file output |
-| `LAUNCHAPP_DATA_DIR` | auto | Override library file location |
-| `LAUNCHAPP_DEBUG` | `0` | Set to `1` for verbose output |
+| Mode | What you get |
+|------|-------------|
+| `debug` | 6-window tmux session — logs, errors, activity lifecycle, crashes, performance, network |
+| `monitor` | Split-pane live monitor with interactive controls |
+| `crash` | Foreground crash + ANR watcher with optional auto-restart (`--watch`) |
+| `perf` | Live performance dashboard — heap, GC, battery |
+| `network` | Logcat-based network call monitor (HTTP/OkHttp/Retrofit) |
+| `info` | App version, permissions, activities, install paths |
+| `top` | Live running process list with memory usage |
+| `install` | Install an APK with progress output |
 
 ---
 
 ## Requirements
 
-| Package | Needed for | Install |
-|---|---|---|
-| `tmux` | All debug/monitor modes | auto with `pkg install launchapp` |
-| `python` | Agent | auto with `pkg install launchapp` |
-| `curl` | Agent transport | `pkg install curl` |
-| `jq` | Remote device management | `pkg install jq` |
-| `nmap` | Network scan | `pkg install nmap` |
-| `android-tools` | ADB transport | `pkg install android-tools` |
-| `termux-api` | Push notifications on crash | F-Droid + `pkg install termux-api` |
+**On the controlling phone (Termux):**
+
+- `tmux` — session management
+- `jq` — JSON parsing
+- `curl` — agent transport
+- `python` — agent server + token generation
+
+**Optional:**
+
+- `android-tools` (ADB) — for ADB wireless mode
+- `termux-api` + Termux:API app — crash notifications and vibration
+- `nmap` — network scan (`launchapp -r scan`)
+- `tcpdump` + root — raw network traffic mode
+
+Install everything at once:
+
+```bash
+pkg install tmux jq curl python android-tools nmap
+```
 
 ---
 
-## Android version notes
+## Quick install
 
-| Android | Status |
-|---|---|
-| 11+ | Full support including ADB wireless pairing |
-| 10 | Full support — ADB connects directly without pairing code |
-| 7–9 | Core features work; some OEM restrictions possible |
+```bash
+git clone https://github.com/MykeChidi/launchapp
+cd launchapp
+bash install.sh
+source ~/.bashrc
+```
 
-launchapp detects restricted capabilities at startup and degrades gracefully with a clear message rather than silently producing empty output.
+`install.sh` handles package checks, shell aliases, config directories, and optional token generation. See [SETUP.md](SETUP.md) for the full walkthrough.
+
+---
+
+## Usage at a glance
+
+```bash
+# Local — debug on this phone
+launchapp chrome debug
+launchapp spotify monitor
+launchapp com.example.myapp crash --watch --save
+launchapp youtube perf
+launchapp top
+
+# Remote — control another phone via agent
+launchapp -r --connect 192.168.1.42 chrome debug
+launchapp -r --connect 192.168.1.42:8765 spotify crash --watch
+
+# Remote — control another phone via ADB wireless
+launchapp -r --adb 192.168.1.42:5555 com.example.myapp monitor
+
+# Scan your network for devices
+launchapp -r scan
+
+# Start agent on this phone so another phone can connect to it
+launchapp -r --agent
+
+# App aliases
+launchapp alias add myapp com.example.myapp
+launchapp alias list
+launchapp alias remove myapp
+
+# Utilities
+launchapp list [filter]       # list installed packages
+launchapp attach [session]    # reattach to a running tmux session
+launchapp history             # show crash history
+launchapp cache clear [pkg]   # clear cached activity resolution
+```
+
+Full reference: [USAGE.md](USAGE.md)
+
+---
+
+## Built-in app aliases
+
+Common apps work by short name without needing the full package:
+
+`chrome` · `youtube` · `spotify` · `gmail` · `maps` · `whatsapp` · `telegram` · `instagram` · `netflix` · `firefox` · `discord` · `reddit` · `snapchat` · `zoom`· and more.
+
+---
+
+## Project structure
+
+```
+launchapp/
+├── launchapp.sh          # Entry point
+├── remote_monitor.sh     # Backwards-compat wrapper for -r flag
+├── agent.py              # HTTP monitoring agent (runs on target phone)
+├── install.sh            # Setup script
+├── lib/
+│   ├── constants.sh      # Global constants and capability detection
+│   ├── log.sh            # Logging helpers
+│   ├── deps.sh           # Dependency checks
+│   ├── tmux.sh           # Session and pane management
+│   ├── android.sh        # Package resolution, app lifecycle
+│   ├── aliases.sh        # User alias CRUD
+│   ├── devices.sh        # Saved device registry (JSON)
+│   ├── agent_client.sh   # HTTP client wrappers for agent API
+│   ├── adb_client.sh     # ADB wireless helpers
+│   ├── transport_local.sh
+│   ├── transport_adb.sh
+│   └── transport_agent.sh
+├── modes/
+│   ├── debug.sh
+│   ├── monitor.sh
+│   ├── crash.sh
+│   ├── perf.sh
+│   ├── network.sh
+│   └── files.sh
+└── remote/
+    ├── scan.sh           # Network scan and device onboarding
+    └── network_traffic.sh # tcpdump-based traffic monitor
+```
+
+---
+
+## Security
+
+The agent server (`agent.py`) is designed for use on trusted local networks. Key properties:
+
+- **Authentication required by default** — token must be set via `--token` or `LAUNCHAPP_TOKEN`; running without auth requires explicit `--no-auth`
+- **No shell injection** — all subprocess calls use list form, never `shell=True`
+- **Path traversal prevention** — all file operations are confined to `/sdcard`
+- **Per-endpoint rate limiting** — protects against accidental request storms
+- **IP allowlist** — optional extra layer via `--allow-ip`
+- **Tokens never stored on disk** — stripped from `devices.json` on save
+
+Do not expose the agent port to the internet or untrusted networks.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT

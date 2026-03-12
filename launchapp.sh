@@ -271,14 +271,24 @@ mode_top() {
     echo -e "${BLUE}══ Running Apps  $(date +%H:%M:%S) ══${NC}"
     printf "  %-10s %-14s %s\n" "PID" "MEM(KB)" "PACKAGE"
     echo "  ──────────────────────────────────────────────────"
-    transport_pm list packages -3 2>/dev/null | sed 's/^package://' | while read -r pkg; do
-      local pid mem
-      pid=$(transport_pidof "$pkg" 2>/dev/null | awk '{print $1}')
+
+    # Collect all running PIDs in one subprocess call,
+    # then intersect with the installed package list.
+    local ps_out pkg_list pid mem entry
+    ps_out=$(transport_shell "ps -A" 2>/dev/null || true)
+    pkg_list=$(transport_pm list packages -3 2>/dev/null | sed 's/^package://')
+
+    local results=""
+    while IFS= read -r pkg; do
+      [[ -z "$pkg" ]] && continue
+      pid=$(printf '%s\n' "$ps_out" | awk -v p="$pkg" '$0 ~ p {print $1; exit}')
       [[ -z "$pid" ]] && continue
       mem=$(transport_dumpsys meminfo "$pkg" 2>/dev/null | awk '/TOTAL/{print $2; exit}')
       [[ -z "$mem" ]] && continue
-      printf "  %-10s %-14s %s\n" "$pid" "${mem:-?}" "$pkg"
-    done | sort -t$'\t' -k2 -rn 2>/dev/null | head -15
+      results+=$(printf "  %-10s %-14s %s\n" "$pid" "$mem" "$pkg")$'\n'
+    done <<< "$pkg_list"
+
+    printf '%s' "$results" | sort -k2 -rn | head -15
     sleep 3
   done
 }

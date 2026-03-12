@@ -25,12 +25,23 @@ init_session() {
 
   mkdir -p "$LAUNCHAPP_LOCK_DIR"
   local lock="$LAUNCHAPP_LOCK_DIR/${session}.lock"
+
+  # If a lockfile exists, treat it as stale if it is older than 30 seconds
+  # (guards against orphaned locks from SIGKILL / crashes).
   if [[ -f "$lock" ]]; then
-    log_warn "Session '$session' creation already in progress"
-    return 1
+    local lock_age
+    lock_age=$(( $(date +%s) - $(stat -c %Y "$lock" 2>/dev/null || echo 0) ))
+    if (( lock_age < 30 )); then
+      log_warn "Session '$session' creation already in progress (lock age: ${lock_age}s)"
+      return 1
+    fi
+    log_warn "Removing stale lock for '$session' (age: ${lock_age}s)"
+    rm -f "$lock"
   fi
+
   touch "$lock"
-  trap 'rm -f "$lock"' RETURN
+  # Clean up lock on normal return AND on INT/TERM so the file never orphans
+  trap 'rm -f "$lock"' RETURN INT TERM
 
   tmux kill-session -t "$session" 2>/dev/null || true
   tmux new-session -d -s "$session" -x "$cols" -y "$rows"

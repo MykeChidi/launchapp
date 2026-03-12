@@ -7,16 +7,6 @@
 #   DEVICE_IP, DEVICE_PORT, AGENT_TOKEN
 # =============================================================================
 
-# Core curl wrapper — all agent calls route through here
-# Usage: _agent_curl ENDPOINT [extra curl flags...]
-_agent_curl() {
-  local endpoint="$1"; shift
-  local url="http://${DEVICE_IP}:${DEVICE_PORT}${endpoint}"
-  local args=(-s -m 10)
-  [[ -n "${AGENT_TOKEN:-}" ]] && args+=(-H "${TOKEN_HEADER}: ${AGENT_TOKEN}")
-  curl "${args[@]}" "$@" "$url" 2>/dev/null
-}
-
 # GET request; returns raw response body
 agent_get() { _agent_curl "$1"; }
 
@@ -79,7 +69,7 @@ agent_processes()   { agent_get "/processes"; }
 agent_logs()        { agent_get "/logs/${1}${2:+?lines=$2}"; }
 agent_meminfo()     { agent_get "/meminfo/${1}"; }
 agent_pid()         { agent_get "/pid/${1}"; }
-agent_launch_pkg()  { agent_get "/launch/${1}"; }
-agent_kill_pkg()    { agent_get "/kill/${1}"; }
+agent_launch_pkg()  { agent_post "/launch/${1}"; }
+agent_kill_pkg()    { agent_post "/kill/${1}"; }
 agent_screenshot()  { agent_get "/screenshot"; }
 agent_files()       { agent_get "/files?path=${1:-/sdcard}"; }

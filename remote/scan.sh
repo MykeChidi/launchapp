@@ -24,8 +24,18 @@ scan_network() {
       | grep -v '^127\.' | head -1)
   [[ -z "$local_ip" ]] && die "Not connected to any network"
 
-  local network
-  network=$(echo "$local_ip" | cut -d. -f1-3).0/24
+  # Read the actual prefix length from the interface
+  local network prefix_len cidr
+  cidr=$(ip -4 addr show wlan0 2>/dev/null \
+    | grep -oP "(?<=inet\s)${local_ip}/[0-9]+" | head -1)
+  if [[ -z "$cidr" ]]; then
+    cidr=$(ip -4 addr show 2>/dev/null \
+      | grep -oP "(?<=inet\s)${local_ip}/[0-9]+" | head -1)
+  fi
+  prefix_len="${cidr##*/}"
+  prefix_len="${prefix_len:-24}"
+  network="${local_ip}/${prefix_len}"
+  
   echo -e "${CYAN}Network: $network${NC}"
   echo -e "${YELLOW}This may take ~30s…${NC}"
   echo
@@ -218,12 +228,14 @@ select_device() {
     agent)
       DEVICE_PORT=$(device_field "$dev" port)
       DEVICE_PORT="${DEVICE_PORT:-$AGENT_DEFAULT_PORT}"
-      local saved_token; saved_token=$(device_field "$dev" token)
-      [[ -n "$saved_token" ]] && AGENT_TOKEN="$saved_token"
+      # Token must come from LAUNCHAPP_TOKEN env var or ~/.launchapp/token.
+      if [[ -z "${AGENT_TOKEN:-}" && -f "$LAUNCHAPP_CONFIG_DIR/token" ]]; then
+        AGENT_TOKEN=$(cat "$LAUNCHAPP_CONFIG_DIR/token")
+      fi
 
       if ! agent_ping "$DEVICE_IP" "$DEVICE_PORT" "${AGENT_TOKEN:-}"; then
         log_error "Agent not reachable at $DEVICE_IP:$DEVICE_PORT"
-        log_warn "Ensure agent.py is running on the target device"
+        log_warn "Ensure agent is running on the target device"
         sleep 2; return 1
       fi
       log_info "Agent connected: $DEVICE_NAME"

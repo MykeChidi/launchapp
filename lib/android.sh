@@ -12,14 +12,12 @@
 declare -gA BUILTIN_PACKAGES=(
   [chrome]="com.android.chrome"
   [youtube]="com.google.android.youtube"
-  [yt]="com.google.android.youtube"
   [spotify]="com.spotify.music"
   [gmail]="com.google.android.gm"
   [maps]="com.google.android.apps.maps"
   [whatsapp]="com.whatsapp"
   [telegram]="org.telegram.messenger"
   [instagram]="com.instagram.android"
-  [twitter]="com.twitter.android"
   [netflix]="com.netflix.mediaclient"
   [settings]="com.android.settings"
   [calculator]="com.android.calculator2"
@@ -45,7 +43,7 @@ declare -gA BUILTIN_PACKAGES=(
 # ── String helpers ────────────────────────────────────────────────────────────
 
 escape_grep() {
-  printf '%s' "$1" | sed 's/[.[\*^$()+?{|]/\\&/g'
+  printf '%s' "$1" | sed 's/[]\[.^$*\\()+?{|]/\\&/g'
 }
 
 is_valid_package() {
@@ -209,7 +207,11 @@ invalidate_cache() {
 logcat_stream_cmd() {
   # Usage: logcat_stream_cmd PKG [extra flags]
   export TRANSPORT_LOGCAT_PKG="$1"
-  transport_cmd logcat "${2:-}" "$1"
+  local pkg="$1" extra_flags="${2:-}"
+  # Pass pkg as an explicit env var prefix in the generated string so the
+  # transport_cmd for agent builds its curl URL from the right package,
+  # independent of whatever TRANSPORT_LOGCAT_PKG was last set to.
+  TRANSPORT_LOGCAT_PKG="$pkg" transport_cmd logcat "$extra_flags" "$pkg"
 }
 
 am_start_cmd()  { transport_cmd am start -n "$1" -W; }

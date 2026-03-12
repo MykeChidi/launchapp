@@ -24,9 +24,14 @@ _agent_curl() {
   local url="http://${DEVICE_IP}:${DEVICE_PORT}${endpoint}"
   local args=(-s -m 10)
   [[ -n "${AGENT_TOKEN:-}" ]] && args+=(-H "${TOKEN_HEADER}: ${AGENT_TOKEN}")
-  local result
-  result=$(curl "${args[@]}" "$@" "$url" 2>/dev/null)
-  local exit_code=$?
+  local result exit_code
+  if [[ "${LAUNCHAPP_DEBUG:-0}" == "1" ]]; then
+    result=$(curl "${args[@]}" "$@" "$url")
+    exit_code=$?
+  else
+    result=$(curl "${args[@]}" "$@" "$url" 2>/dev/null)
+    exit_code=$?
+  fi
 
   if [[ $exit_code -ne 0 || -z "$result" ]]; then
     (( _AGENT_CONSECUTIVE_FAILURES++ )) || true
@@ -53,16 +58,16 @@ transport_am() {
   local subcmd="$1"; shift
   case "$subcmd" in
     start)
-      # Extract package from -n PKG/ACTIVITY or bare PKG
       local pkg=""
       while [[ $# -gt 0 ]]; do
         [[ "$1" == "-n" ]] && { shift; pkg="${1%%/*}"; }
         shift
       done
-      [[ -n "$pkg" ]] && _agent_curl "/launch/${pkg}" | jq -r '.launched // .error' 2>/dev/null
+      [[ -n "$pkg" ]] && _agent_curl "/launch/${pkg}" -X POST \
+        | jq -r '.launched // .error' 2>/dev/null
       ;;
     force-stop)
-      _agent_curl "/kill/${1}" | jq -r '.killed // .error' 2>/dev/null
+      _agent_curl "/kill/${1}" -X POST | jq -r '.killed // .error' 2>/dev/null
       ;;
     *)
       log_warn "transport_agent: unsupported am subcommand: $subcmd"
@@ -81,13 +86,16 @@ transport_pm() {
       _agent_curl "/packages" | jq -r '.[].package' 2>/dev/null | sed 's/^/package:/'
       ;;
     dump)
-      # Used by find_main_activity — agent returns activity directly via /info endpoint
-      # We emit a fake pm dump block that find_main_activity can parse
+      # Used by find_main_activity — query the agent's /launch/<pkg> info endpoint
+      # to get the main activity for the specific package, then emit a fake pm dump
+      # block that find_main_activity's awk strategies can parse.
       local pkg="$1"
       local act
-      act=$(_agent_curl "/info" | jq -r '.main_activity // empty' 2>/dev/null)
+      # /launch/<pkg> returns {"launched":pkg,"activity":"pkg/.Activity"} on GET
+      # We derive the activity from the agent's find_main_activity logic server-side.
+      act=$(_agent_curl "/activity/${pkg}" 2>/dev/null \
+        | jq -r '.activity // empty' 2>/dev/null)
       if [[ -n "$act" ]]; then
-        # Fake the pm dump format so find_main_activity's awk can parse it
         printf 'android.intent.action.MAIN:\n  %s\n' "$act"
       fi
       ;;
@@ -226,11 +234,11 @@ transport_cmd() {
             [[ "$1" == "-n" ]] && { shift; pkg="${1%%/*}"; }
             shift
           done
-          printf "curl -s -m 10 %s '%s/launch/%s' | jq -r '.launched // .error' 2>/dev/null" \
+          printf "curl -s -m 10 -X POST %s '%s/launch/%s' | jq -r '.launched // .error' 2>/dev/null" \
             "$auth" "$base" "$pkg"
           ;;
         force-stop)
-          printf "curl -s -m 10 %s '%s/kill/%s' | jq -r '.killed // .error' 2>/dev/null" \
+          printf "curl -s -m 10 -X POST %s '%s/kill/%s' | jq -r '.killed // .error' 2>/dev/null" \
             "$auth" "$base" "$1"
           ;;
       esac
@@ -247,7 +255,8 @@ transport_cmd() {
       esac
       ;;
     logcat)
-      local pkg="${TRANSPORT_LOGCAT_PKG:-$1}"
+      # Prefer the explicit argument; fall back to env var only if arg is empty.
+      local pkg="${1:-${TRANSPORT_LOGCAT_PKG:-}}"
       printf "while true; do curl -s -m 10 %s '%s/logs/%s?lines=80' | jq -r '.[]?' 2>/dev/null; sleep 2; done" \
         "$auth" "$base" "$pkg"
       ;;
