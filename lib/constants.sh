@@ -4,16 +4,16 @@
 # Sourced by every script. Must not execute any side-effects.
 # =============================================================================
 
-readonly VERSION="1.0.0"
-readonly LAUNCHAPP_CONFIG_DIR="${LAUNCHAPP_CONFIG_DIR:-$HOME/.launchapp}"
-readonly LAUNCHAPP_CACHE_DIR="$LAUNCHAPP_CONFIG_DIR/cache"
-readonly LAUNCHAPP_LOG_DIR="${LAUNCHAPP_LOG_DIR:-$HOME/launchapp_logs}"
-readonly LAUNCHAPP_ALIAS_FILE="$LAUNCHAPP_CONFIG_DIR/aliases"
-readonly LAUNCHAPP_DEVICES_FILE="$LAUNCHAPP_CONFIG_DIR/devices.json"
-readonly LAUNCHAPP_LOCK_DIR="/tmp/launchapp_locks"
-readonly AGENT_DEFAULT_PORT=8765
-readonly TOKEN_HEADER="X-Launchapp-Token"
-readonly TERMUX_SHELL="/data/data/com.termux/files/usr/bin/bash"
+[[ -v VERSION ]] || readonly VERSION="1.0.0"
+[[ -v LAUNCHAPP_CONFIG_DIR ]] || readonly LAUNCHAPP_CONFIG_DIR="${LAUNCHAPP_CONFIG_DIR:-$HOME/.launchapp}"
+[[ -v LAUNCHAPP_CACHE_DIR  ]] || readonly LAUNCHAPP_CACHE_DIR="$LAUNCHAPP_CONFIG_DIR/cache"
+[[ -v LAUNCHAPP_LOG_DIR    ]] || readonly LAUNCHAPP_LOG_DIR="${LAUNCHAPP_LOG_DIR:-$HOME/launchapp_logs}"
+[[ -v LAUNCHAPP_ALIAS_FILE ]] || readonly LAUNCHAPP_ALIAS_FILE="$LAUNCHAPP_CONFIG_DIR/aliases"
+[[ -v LAUNCHAPP_DEVICES_FILE ]] || readonly LAUNCHAPP_DEVICES_FILE="$LAUNCHAPP_CONFIG_DIR/devices.json"
+[[ -v LAUNCHAPP_LOCK_DIR   ]] || readonly LAUNCHAPP_LOCK_DIR="/tmp/launchapp_locks"
+[[ -v AGENT_DEFAULT_PORT   ]] || readonly AGENT_DEFAULT_PORT=8765
+[[ -v TOKEN_HEADER         ]] || readonly TOKEN_HEADER="X-Launchapp-Token"
+[[ -v TERMUX_SHELL         ]] || readonly TERMUX_SHELL="/data/data/com.termux/files/usr/bin/bash"
 
 # ── Android capability detection ─────────────────────────────────────────────
 # Detected once at source time. Scripts use these flags to degrade gracefully
@@ -51,10 +51,12 @@ _detect_android_capabilities() {
 [[ "${TRANSPORT:-local}" == "local" ]] && _detect_android_capabilities || true
 
 # ── Colors (disabled when stdout is not a terminal) ──────────────────────────
-if [[ -t 1 ]]; then
-  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-  BLUE='\033[0;34m'; PURPLE='\033[0;35m'; CYAN='\033[0;36m'; NC='\033[0m'
-else
-  RED=''; GREEN=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; NC=''
+if [[ ! -v RED ]]; then
+  if [[ -t 1 ]]; then
+    RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'; PURPLE='\033[0;35m'; CYAN='\033[0;36m'; NC='\033[0m'
+  else
+    RED=''; GREEN=''; YELLOW=''; BLUE=''; PURPLE=''; CYAN=''; NC=''
+  fi
+  readonly RED GREEN YELLOW BLUE PURPLE CYAN NC
 fi
-readonly RED GREEN YELLOW BLUE PURPLE CYAN NC

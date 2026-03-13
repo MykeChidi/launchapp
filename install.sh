@@ -315,10 +315,10 @@ echo "  launchapp -r --connect <TARGET_IP> chrome debug"
 echo
 echo -e "${YELLOW}Remote debugging via ADB:${NC}"
 echo "  # Enable Wireless Debugging on target, then:"
-echo "  remote_monitor --adb <TARGET_IP>:5555 spotify monitor"
+echo "  launchapp -r --adb <TARGET_IP>:5555 spotify monitor"
 echo
 echo -e "${YELLOW}Your agent token:${NC}"
 echo "  ${AGENT_TOKEN:0:16}…  (full token in $TOKEN_FILE)"
 echo
-echo -e "  ${CYAN}See README.md for full documentation.${NC}"
+echo -e "  ${CYAN}See USAGE.md for full documentation.${NC}"
 echo
