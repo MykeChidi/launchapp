@@ -57,8 +57,8 @@ echo
 
 step "Checking Termux packages"
 
-REQUIRED_PKGS=(tmux jq curl python)
-OPTIONAL_PKGS=(nmap android-tools termux-api)
+REQUIRED_PKGS=(tmux jq curl android-tools python)
+OPTIONAL_PKGS=(nmap termux-api)
 
 # Update pkg list first
 if confirm "Update Termux package list first?"; then
@@ -298,6 +298,9 @@ echo -e "${CYAN}└────────────────────�
 echo
 echo -e "${YELLOW}Reload your shell first:${NC}"
 echo "  source ~/.bashrc"
+echo
+echo -e "${YELLOW}First-time setup (required once):${NC}"
+echo "  launchapp setup"
 echo
 echo -e "${YELLOW}Local debugging (on this phone):${NC}"
 echo "  launchapp chrome debug"

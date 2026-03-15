@@ -1,4 +1,4 @@
-# `launchapp`
+# `launchapp` - Termux-native Android debug tookit
 
 Termux-native Android debug toolkit — local and remote app monitoring, crash detection, performance profiling, and network inspection from your phone.
 
@@ -6,7 +6,7 @@ Termux-native Android debug toolkit — local and remote app monitoring, crash d
 ```bash
 launchapp chrome debug
 launchapp spotify crash --watch
-launchapp -r --connect 192.168.1.42 com.example.myapp perf
+launchapp -r --connect 192.168.1.42 com.example.myapp perf  # remote
 ```
 
 ---
@@ -69,6 +69,7 @@ git clone https://github.com/MykeChidi/launchapp
 cd launchapp
 bash install.sh
 source ~/.bashrc
+launchapp setup  # one-time ADB loopback setup
 ```
 
 `install.sh` handles package checks, shell aliases, config directories, and optional token generation. See [SETUP.md](SETUP.md) for the full walkthrough.

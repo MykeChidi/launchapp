@@ -8,7 +8,6 @@ Complete installation and configuration reference for launchapp.
 
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Manual install](#manual-install)
 - [Shell configuration](#shell-configuration)
 - [Agent token setup](#agent-token-setup)
 - [Connecting to a second phone](#connecting-to-a-second-phone)
@@ -74,6 +73,18 @@ The install script does the following:
 6. Generates an agent token and saves it to `~/.launchapp/token`
 7. Optionally exports `LAUNCHAPP_TOKEN` in your rc file
 8. Runs a syntax check on all shell and Python files
+
+### First-time setup (required once)
+
+launchapp uses ADB over loopback to get full shell permissions on any Android version. Run this once after installing:
+
+```bash
+launchapp setup
+```
+
+This requires **Wireless Debugging** to be enabled in Developer Options. On Android 11+, you may need to pair first — the setup command will walk you through it.
+
+You only need to do this once. After that `launchapp <app> debug` just works.
 
 ### Verify the installation
 
@@ -328,16 +339,10 @@ The cache in `~/.launchapp/cache/` is version-keyed and will auto-invalidate. Yo
 ## Uninstalling
 
 ```bash
-# Remove symlinks if created
-rm -f "$PREFIX/bin/launchapp" "$PREFIX/bin/remote_monitor"
+# Using uninstall script
+bash launchapp/uninstall.sh
 
-# Remove aliases from shell rc (edit manually to remove the launchapp block)
-nano ~/.bashrc
-
-# Remove config, logs, and screenshots
-rm -rf ~/.launchapp ~/launchapp_logs ~/launchapp_screenshots ~/launchapp_downloads
-
-# Remove the cloned directory
+# Then Remove the cloned directory
 rm -rf ~/launchapp
 ```
 

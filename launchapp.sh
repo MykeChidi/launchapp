@@ -80,6 +80,30 @@ AGENT_TOKEN="${LAUNCHAPP_TOKEN:-}"
 # =============================================================================
 
 activate_local_transport() {
+  need_adb
+
+  # Enable TCP/IP mode and connect ADB to this device over loopback.
+  # This gives full shell permissions regardless of Android version or OEM.
+  if ! adb devices 2>/dev/null | grep -q "^localhost:5555.*device$"; then
+    log_info "Connecting ADB to localhost…"
+    adb tcpip 5555 2>/dev/null || true
+    sleep 1
+    adb connect localhost:5555 2>/dev/null || true
+    sleep 1
+    if ! adb devices 2>/dev/null | grep -q "^localhost:5555.*device$"; then
+      echo
+      log_error "Could not connect ADB to this device."
+      echo
+      echo "  One-time setup required:"
+      echo "  1. Settings → About phone → tap Build number 7 times"
+      echo "  2. Settings → Developer Options → Enable Wireless Debugging"
+      echo "  3. Run: launchapp setup"
+      echo
+      exit 1
+    fi
+    log_info "ADB connected to localhost"
+  fi
+
   source "$SCRIPT_DIR/lib/transport_local.sh"
   source "$SCRIPT_DIR/lib/android.sh"
   _cleanup_stale_tempfiles
@@ -404,6 +428,42 @@ show_scan_menu() {
   done
 }
 
+_setup_local_adb() {
+  need_adb
+  echo
+  echo -e "${CYAN}launchapp local setup — ADB loopback${NC}"
+  echo
+  echo "This connects ADB to your own device over WiFi loopback so launchapp"
+  echo "has full permissions regardless of Android version or OEM skin."
+  echo
+  echo "Requirements:"
+  echo "  1. Settings → About phone → tap Build number 7 times"
+  echo "  2. Settings → Developer Options → Wireless Debugging → Enable"
+  echo
+  read -rp "  Ready? Press Enter to continue…" _
+  echo
+  log_info "Enabling ADB TCP mode on port 5555…"
+  adb tcpip 5555 2>/dev/null || true
+  sleep 2
+  log_info "Connecting to localhost:5555…"
+  adb connect localhost:5555 2>/dev/null || true
+  sleep 1
+  if adb devices 2>/dev/null | grep -q "^localhost:5555.*device$"; then
+    log_info "Success — ADB loopback connected"
+    echo
+    echo -e "  ${GREEN}launchapp is ready to use.${NC}"
+    echo "  Try: launchapp telegram debug"
+  else
+    log_error "Connection failed."
+    echo
+    echo "  Make sure Wireless Debugging is enabled in Developer Options."
+    echo "  On Android 11+, you may need to pair first:"
+    echo "    Settings → Developer Options → Wireless Debugging → Pair with code"
+    echo "    Then run: adb pair localhost:PORT  (use the port shown on screen)"
+  fi
+  echo
+}
+
 # =============================================================================
 # HELP
 # =============================================================================
@@ -535,6 +595,7 @@ main() {
       list)          shift; mode_list "${1:-}"; exit 0 ;;
       attach)        shift; mode_attach "${1:-}"; exit $? ;;
       history)       mode_history; exit 0 ;;
+      setup)         _setup_local_adb; exit 0 ;;
       scan)
         [[ "$remote" != "true" ]] && die "'scan' requires -r flag. Use: $SCRIPT_NAME -r scan"
         show_scan_menu; exit 0
