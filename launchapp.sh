@@ -64,7 +64,6 @@ source "$SCRIPT_DIR/modes/network.sh"
 source "$SCRIPT_DIR/modes/files.sh"
 
 readonly SCRIPT_NAME="launchapp"
-readonly VERSION="1.0.0"
 
 # ── Remote connection state (populated when -r is used) ──────────────────────
 DEVICE_IP=""
@@ -494,17 +493,17 @@ main() {
       --connect=*)
         remote=true; connect_addr="${arg#--connect=}" ;;
       --connect)
-        remote=true; ((i++)); connect_addr="${args[$i]:-}" ;;
+        remote=true; ((i++)) || true; connect_addr="${args[$i]:-}" ;;
       --adb=*)
         remote=true; adb_device="${arg#--adb=}" ;;
       --adb)
-        remote=true; ((i++)); adb_device="${args[$i]:-}" ;;
+        remote=true; ((i++)) || true; adb_device="${args[$i]:-}" ;;
       --token=*)
         AGENT_TOKEN="${arg#--token=}" ;;
       --token)
-        ((i++)); AGENT_TOKEN="${args[$i]:-}" ;;
+        ((i++)) || true; AGENT_TOKEN="${args[$i]:-}" ;;
     esac
-    ((i++))
+    ((i++)) || true
   done
 
   # ── Source transport based on mode ────────────────────────────────────────

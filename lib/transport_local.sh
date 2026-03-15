@@ -8,7 +8,14 @@
 TRANSPORT="local"
 
 transport_am()      { am "$@"; }
-transport_pm()      { pm "$@"; }
+transport_pm(){
+  # Use cmd command or fallback to pm if cmd is unavailable
+  if command -v cmd &>/dev/null; then
+    cmd package "$@" 2>/dev/null || pm "$@"
+  else
+    pm "$@"
+  fi
+}
 transport_logcat()  { logcat "$@"; }
 transport_dumpsys() { dumpsys "$@"; }
 transport_pidof()   { pidof "$@" 2>/dev/null || ps -A 2>/dev/null | awk "/$1/{print \$1}" | head -1; }
