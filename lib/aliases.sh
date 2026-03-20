@@ -22,9 +22,11 @@ alias_list() {
 # Usage: alias_add NAME PACKAGE[/ACTIVITY]
 alias_add() {
   local name="$1" value="$2"
+  local safe_name
   [[ -z "$name" || -z "$value" ]] && die "Usage: alias add NAME PACKAGE[/ACTIVITY]"
   _ensure_alias_file
-  sed -i "/^${name}=/d" "$LAUNCHAPP_ALIAS_FILE"
+  safe_name=$(printf '%s' "$name" | sed 's/[[\.*^$()+?{|]/\\&/g; s|/|\\/|g')
+  sed -i "/^${safe_name}=/d" "$LAUNCHAPP_ALIAS_FILE"
   echo "${name}=${value}" >> "$LAUNCHAPP_ALIAS_FILE"
   log_info "Alias added: ${name} → ${value}"
 }
@@ -34,7 +36,9 @@ alias_remove() {
   local name="$1"
   [[ -z "$name" ]] && die "Usage: alias remove NAME"
   _ensure_alias_file
-  sed -i "/^${name}=/d" "$LAUNCHAPP_ALIAS_FILE"
+  local safe_name
+  safe_name=$(printf '%s' "$name" | sed 's/[[\.*^$()+?{|]/\\&/g; s|/|\\/|g')
+  sed -i "/^${safe_name}=/d" "$LAUNCHAPP_ALIAS_FILE"
   log_info "Alias removed: ${name}"
 }
 

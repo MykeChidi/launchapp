@@ -60,7 +60,7 @@ scan_network() {
 
   for ip in "${!ip_to_host[@]}"; do
     [[ "$ip" == "$local_ip" ]] && continue
-    ((count++))
+    ((count++)) || true
     local host="${ip_to_host[$ip]}"
 
     # Probe for agent and ADB in parallel
@@ -95,11 +95,11 @@ scan_network() {
   echo "Connection mode:"
   local modes=()
   local i=0
-  ((i++)); echo "  $i. Agent (authenticated HTTP — recommended)"; modes+=(agent)
+  ((i++)) || true; echo "  $i. Agent (authenticated HTTP — recommended)"; modes+=(agent)
   if nc -z -w 1 "$sel_ip" 5555 2>/dev/null; then
-    ((i++)); echo "  $i. ADB wireless"; modes+=(adb)
+    ((i++)) || true; echo "  $i. ADB wireless"; modes+=(adb)
   fi
-  ((i++)); echo "  $i. Network traffic only (tcpdump — root required)"; modes+=(network)
+  ((i++)) || true; echo "  $i. Network traffic only (tcpdump — root required)"; modes+=(network)
   echo
   local mc
   read -rp "Choice [1]: " mc

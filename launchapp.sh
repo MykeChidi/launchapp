@@ -80,6 +80,7 @@ AGENT_TOKEN="${LAUNCHAPP_TOKEN:-}"
 # =============================================================================
 
 activate_local_transport() {
+  [[ "${TRANSPORT:-}" == "local" ]] && return 0
   need_adb
 
   # Enable TCP/IP mode and connect ADB to this device over loopback.
@@ -538,7 +539,7 @@ main() {
   local app_arg="" mode="launch" save_logs=false watch=false
   local remote=false connect_addr="" adb_device=""
 
-  [[ $# -eq 0 ]] && { activate_local_transport; print_usage; exit 0; }
+  [[ $# -eq 0 ]] && { print_usage; exit 0; }
 
   # ── Pre-pass: detect -r / --remote and grab connection flags ─────────────
   # Handles both --connect IP and --connect=IP forms.
@@ -575,8 +576,6 @@ main() {
     fi
     # If we have a device type, activate transport now
     [[ -n "$DEVICE_TYPE" ]] && activate_remote_transport
-  else
-    activate_local_transport
   fi
 
   # ── Main arg parse ────────────────────────────────────────────────────────
@@ -592,7 +591,7 @@ main() {
       --watch)       watch=true; shift ;;
       -v)       export LAUNCHAPP_DEBUG=1; shift ;;
       alias)         shift; alias_cmd "$@"; exit $? ;;
-      list)          shift; mode_list "${1:-}"; exit 0 ;;
+      list)          shift; activate_local_transport; mode_list "${1:-}"; exit 0 ;;
       attach)        shift; mode_attach "${1:-}"; exit $? ;;
       history)       mode_history; exit 0 ;;
       setup)         _setup_local_adb; exit 0 ;;
@@ -634,7 +633,7 @@ main() {
   fi
 
   # ── top and history don't need an app ────────────────────────────────────
-  if [[ "$mode" == "top" ]]; then mode_top; exit 0; fi
+  if [[ "$mode" == "top" ]]; then activate_local_transport; mode_top; exit 0; fi
 
   [[ -z "$app_arg" ]] && { print_usage; exit 1; }
 

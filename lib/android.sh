@@ -61,7 +61,9 @@ resolve_app() {
 
   if [[ -f "$LAUNCHAPP_ALIAS_FILE" ]]; then
     local match
-    match=$(grep -i "^${input}=" "$LAUNCHAPP_ALIAS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    local safe_input
+    safe_input=$(printf '%s' "$input" | sed 's/[[\.*^$()+?{|]/\\&/g; s|/|\\/|g')
+    match=$(grep -i "^${safe_input}=" "$LAUNCHAPP_ALIAS_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
     if [[ -n "$match" ]]; then
       log_debug "Resolved '$input' via user alias → $match"
       echo "$match"; return 0
@@ -192,7 +194,7 @@ do_install() {
 invalidate_cache() {
   local pkg="${1:-}"
   if [[ -n "$pkg" ]]; then
-    rm -f "$LAUNCHAPP_CACHE_DIR"/*_"${pkg}".activity 2>/dev/null || true
+    rm -f "$LAUNCHAPP_CACHE_DIR"/*_"${pkg}"_.activity 2>/dev/null || true
     log_info "Cache cleared for $pkg"
   else
     rm -f "$LAUNCHAPP_CACHE_DIR"/*.activity 2>/dev/null || true

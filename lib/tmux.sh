@@ -102,6 +102,6 @@ _cleanup_stale_tempfiles() {
 # List all active launchapp-owned sessions (prefix: dbg_ mon_ adg_ amon_ adbg_ net_)
 list_la_sessions() {
   tmux list-sessions -F "#{session_name}" 2>/dev/null \
-    | grep -E '^(dbg_|mon_|adg_|amon_|adbg_|adbg_|net_)' \
+    | grep -E '^(dbg_|mon_|adg_|amon_|adbg_|net_)' \
     || true
 }
