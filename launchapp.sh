@@ -293,6 +293,7 @@ mode_top() {
   while true; do
     clear
     echo -e "${BLUE}══ Running Apps  $(date +%H:%M:%S) ══${NC}"
+    echo -e "${YELLOW}Press Ctrl+C to exit${NC}"
     printf "  %-10s %-14s %s\n" "PID" "MEM(KB)" "PACKAGE"
     echo "  ──────────────────────────────────────────────────"
 
@@ -630,6 +631,13 @@ main() {
       show_scan_menu
     fi
     exit 0
+  fi
+  
+  # ── Activate local transport if not already active ────────────────────────
+  # Remote transport was already activated above in the pre-pass; for local
+  # commands we must activate it here, before the first resolve_app call.
+  if [[ "$remote" != "true" ]]; then
+    activate_local_transport
   fi
 
   # ── top and history don't need an app ────────────────────────────────────

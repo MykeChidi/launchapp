@@ -96,10 +96,9 @@ find_main_activity() {
   local pkg="$1"
 
   # ── Version-keyed cache ───────────────────────────────────────────────────
-  # Include the installed app version in the cache key so updates auto-invalidate.
   local app_version
-  app_version=$(transport_pm list packages 2>/dev/null \
-    | grep -F "package:$pkg=" | cut -d= -f2 | head -1)
+  app_version=$(transport_pm list packages --show-versioncode 2>/dev/null \
+    | grep -F "package:$pkg " | awk '{print $NF}' | cut -d: -f2 | head -1)
   # Fallback: use mtime-only key if version not parseable (older Android/pm format)
   local cache_key="${TRANSPORT:-local}_${pkg}_${app_version:-v0}"
   local cached="$LAUNCHAPP_CACHE_DIR/${cache_key}.activity"
@@ -115,11 +114,14 @@ find_main_activity() {
   fi
 
   local dump activity
-  dump=$(transport_pm dump "$pkg" 2>/dev/null)
+  dump=$(transport_pm dump "$pkg" 2>/dev/null | tr -d '\r') 
 
-  # Strategy 1 (original): MAIN action block followed by pkg name on next line
+  # Strategy 1: find MAIN action block, then scan following lines for the field
+  # that contains a '/' (pkg/activity separator).
   activity=$(echo "$dump" \
-    | awk '/android\.intent\.action\.MAIN/{f=1} f && /'"$(escape_grep "$pkg")"'/{print $2; exit}')
+    | awk '/android\.intent\.action\.MAIN/{f=1} f && /'"$(escape_grep "$pkg")"'/{
+        for(i=1;i<=NF;i++) if($i ~ /\//) {print $i; exit}
+    }')
 
   # Strategy 2: look for "android.intent.action.MAIN" and grab first activity on
   # ANY following line that contains a slash (handles reordered output in Android 13+)
@@ -194,7 +196,7 @@ do_install() {
 invalidate_cache() {
   local pkg="${1:-}"
   if [[ -n "$pkg" ]]; then
-    rm -f "$LAUNCHAPP_CACHE_DIR"/*_"${pkg}"_.activity 2>/dev/null || true
+    rm -f "$LAUNCHAPP_CACHE_DIR"/*_"${pkg}"_*.activity 2>/dev/null || true
     log_info "Cache cleared for $pkg"
   else
     rm -f "$LAUNCHAPP_CACHE_DIR"/*.activity 2>/dev/null || true
@@ -222,3 +224,4 @@ meminfo_cmd()   { transport_cmd dumpsys meminfo "$1"; }
 battery_cmd()   { transport_cmd dumpsys battery; }
 pm_clear_cmd()  { transport_cmd pm clear "$1"; }
 pm_dump_cmd()   { transport_cmd pm dump "$1"; }
+stats_cmd()     { transport_cmd stats; }
