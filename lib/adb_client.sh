@@ -107,8 +107,9 @@ adb_setup_device() {
     return 1
   fi
 
+  sleep 1
   if ! adb_ping "$conn_addr"; then
-    log_error "Device is not in 'device' state after connect — try revoking and re-authorising"
+    log_error "Device '$conn_addr' not in 'device' state — enable Wireless Debugging and authorize on the device"
     return 1
   fi
 

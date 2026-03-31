@@ -83,33 +83,27 @@ activate_local_transport() {
   [[ "${TRANSPORT:-}" == "local" ]] && return 0
   need_adb
 
-  # Enable TCP/IP mode and connect ADB to this device over loopback.
-  # This gives full shell permissions regardless of Android version or OEM.
-  if ! adb devices 2>/dev/null | grep -q "^localhost:5555.*device$"; then
-    log_info "Connecting ADB to localhost…"
-    adb tcpip 5555 2>/dev/null || true
-    sleep 1
-    adb connect localhost:5555 2>/dev/null || true
-    sleep 1
-    if ! adb devices 2>/dev/null | grep -q "^localhost:5555.*device$"; then
-      echo
-      log_error "Could not connect ADB to this device."
-      echo
-      echo "  One-time setup required:"
-      echo "  1. Settings → About phone → tap Build number 7 times"
-      echo "  2. Settings → Developer Options → Enable Wireless Debugging"
-      echo "  3. Run: launchapp setup"
-      echo
-      exit 1
-    fi
-    log_info "ADB connected to localhost"
+  # Connect to this device via wireless debugging using its actual network IP.
+  # Stores the IP:port in LOCAL_DEVICE_ADB_ID for use by transport_local.sh
+  
+  # Check if we already have a valid connection
+  local stored_device
+  stored_device=$(adb devices 2>/dev/null | grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+.*device$" | awk '{print $1}' | head -1)
+  
+  if [[ -z "$stored_device" ]]; then
+    log_error "No wireless ADB connection found."
+    log_error "Run 'launchapp setup' to pair and connect this device."
+    exit 1
   fi
+  
+  export LOCAL_DEVICE_ADB_ID="$stored_device"
+  log_debug "Using local device: $LOCAL_DEVICE_ADB_ID"
 
   source "$SCRIPT_DIR/lib/transport_local.sh"
   source "$SCRIPT_DIR/lib/android.sh"
   _cleanup_stale_tempfiles
 }
-
+ 
 activate_remote_transport() {
   source "$SCRIPT_DIR/lib/devices.sh"
   source "$SCRIPT_DIR/lib/agent_client.sh"
@@ -144,7 +138,9 @@ _connect_agent() {
   log_info "Connecting to agent at $ip:$port…"
 
   source "$SCRIPT_DIR/lib/agent_client.sh" 2>/dev/null || true
-  DEVICE_IP="$ip"; DEVICE_PORT="$port"
+  
+  # Temporary variables — only set DEVICE_* after full validation
+  local temp_ip="$ip" temp_port="$port"
 
   local args=(-s -m 5)
   [[ -n "$AGENT_TOKEN" ]] && args+=(-H "${TOKEN_HEADER}: $AGENT_TOKEN")
@@ -152,19 +148,20 @@ _connect_agent() {
   # Capture HTTP status code separately so we can give a clear auth error
   local http_code info
   http_code=$(curl "${args[@]}" -o /tmp/la_agent_info.json -w "%{http_code}" \
-    "http://${ip}:${port}/info" 2>/dev/null || echo "000")
+    "http://${temp_ip}:${temp_port}/info" 2>/dev/null || echo "000")
   info=$(cat /tmp/la_agent_info.json 2>/dev/null); rm -f /tmp/la_agent_info.json
 
   case "$http_code" in
-    000) die "Cannot reach agent at $ip:$port — is agent.py running? Are both phones on the same WiFi?" ;;
+    000) die "Cannot reach agent at $temp_ip:$temp_port — is agent.py running? Are both phones on the same WiFi?" ;;
     401) die "Authentication failed (HTTP 401) — LAUNCHAPP_TOKEN does not match the agent's token" ;;
     403) die "Access denied (HTTP 403) — your IP is not on the agent's allowlist" ;;
     200) ;;  # ok, fall through
-    *)   die "Agent returned unexpected HTTP $http_code from $ip:$port" ;;
+    *)   die "Agent returned unexpected HTTP $http_code from $temp_ip:$temp_port" ;;
   esac
 
+  # Validate JSON response before proceeding
   if [[ -z "$info" ]] || ! echo "$info" | python3 -c "import sys,json; json.load(sys.stdin)" &>/dev/null; then
-    die "Agent at $ip:$port returned invalid JSON — version mismatch? Try upgrading launchapp on both phones."
+    die "Agent at $temp_ip:$temp_port returned invalid JSON — version mismatch? Try upgrading launchapp on both phones."
   fi
 
   # ── Version compatibility check ───────────────────────────────────────────
@@ -182,10 +179,13 @@ _connect_agent() {
     log_warn "Some features may not work correctly. Upgrade launchapp on both phones."
   fi
 
+  # All validation passed — now set the global connection variables
+  DEVICE_IP="$temp_ip"
+  DEVICE_PORT="$temp_port"
   DEVICE_TYPE="agent"
   DEVICE_NAME=$(echo "$info" | python3 -c \
     "import sys,json; d=json.load(sys.stdin); print(d.get('model','?') + ' (Android ' + d.get('android','?') + ')')" \
-    2>/dev/null || echo "$ip")
+    2>/dev/null || echo "$temp_ip")
   log_info "Connected: $DEVICE_NAME (agent v${agent_ver})"
 }
 
@@ -199,16 +199,19 @@ _connect_adb() {
 
   if ! adb devices 2>/dev/null | grep -q "^${device_id}.*device$"; then
     log_info "Connecting ADB: $device_id…"
-    adb connect "$device_id" 2>/dev/null
+    adb connect "$device_id" 2>/dev/null || die "adb connect failed for $device_id"
     sleep 1
     adb devices 2>/dev/null | grep -q "^${device_id}.*device$" \
       || die "ADB connect failed for $device_id — is Wireless Debugging enabled on the target?"
   fi
 
+  # Wait for device to be fully ready before querying properties
+  sleep 1
+  
   local model android android_int
-  model=$(adb -s "$device_id" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
-  android=$(adb -s "$device_id" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r')
-  android_int=$(adb -s "$device_id" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')
+  model=$(adb -s "$device_id" shell getprop ro.product.model 2>/dev/null | tr -d '\r') || true
+  android=$(adb -s "$device_id" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r') || true
+  android_int=$(adb -s "$device_id" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r') || true
   DEVICE_IP=$(echo "$device_id" | cut -d: -f1)
   DEVICE_NAME="${model:-$device_id} (Android ${android:-?})"
 
@@ -433,35 +436,68 @@ show_scan_menu() {
 _setup_local_adb() {
   need_adb
   echo
-  echo -e "${CYAN}launchapp local setup — ADB loopback${NC}"
+  echo -e "${CYAN}launchapp local setup — Wireless Debugging${NC}"
   echo
-  echo "This connects ADB to your own device over WiFi loopback so launchapp"
-  echo "has full permissions regardless of Android version or OEM skin."
+  echo "This pairs your device via wireless debugging, enabling launchapp to run"
+  echo "with full shell permissions on any Android version or OEM."
   echo
   echo "Requirements:"
-  echo "  1. Settings → About phone → tap Build number 7 times"
+  echo "  1. Settings → tap Build number 7 times (if not already enabled)"
   echo "  2. Settings → Developer Options → Wireless Debugging → Enable"
+  echo "  3. Tap 'Pair device with pairing code' in Wireless Debugging"
   echo
-  read -rp "  Ready? Press Enter to continue…" _
+  read -rp "  Ready? (y/n) " -n 1 confirm
   echo
-  log_info "Enabling ADB TCP mode on port 5555…"
-  adb tcpip 5555 2>/dev/null || true
-  sleep 2
-  log_info "Connecting to localhost:5555…"
-  adb connect localhost:5555 2>/dev/null || true
+  [[ "$confirm" != "y" ]] && return 1
+  echo
+  
+  # Get the IP:port and pairing code from the user (they see this in Wireless Debugging settings)
+  read -rp "  Enter IP:port shown in Wireless Debugging (e.g., 192.168.1.42:12345): " device_addr
+  if ! [[ "$device_addr" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+$ ]]; then
+    log_error "Invalid IP:port format. Expected format: 192.168.1.42:12345"
+    return 1
+  fi
+  
+  read -rsp "  Enter the 6-digit pairing code from your phone: " pairing_code
+  echo
+  if ! [[ "$pairing_code" =~ ^[0-9]{6}$ ]]; then
+    log_error "Invalid pairing code. Expected 6 digits."
+    return 1
+  fi
+  echo
+  
+  # Pair with the device
+  log_info "Pairing with $device_addr…"
+  if ! adb pair "$device_addr" "$pairing_code" 2>&1 | tee /tmp/adb_pair.log | grep -q "Successfully paired"; then
+    log_error "Pairing failed."
+    echo "  $(cat /tmp/adb_pair.log | tail -1)"
+    return 1
+  fi
   sleep 1
-  if adb devices 2>/dev/null | grep -q "^localhost:5555.*device$"; then
-    log_info "Success — ADB loopback connected"
+  
+  # Extract just the IP:port for connection (remove any extraneous info from pair output)
+  local connect_addr="${device_addr}"
+  
+  # Now connect to the device
+  log_info "Connecting to $connect_addr…"
+  if ! adb connect "$connect_addr" 2>&1 | grep -q "connected\|already"; then
+    log_error "Connection failed."
+    return 1
+  fi
+  sleep 1
+  
+  # Verify connection
+  if adb devices 2>/dev/null | grep -q "^${connect_addr}.*device$"; then
+    # Store for later use
+    export LOCAL_DEVICE_ADB_ID="$connect_addr"
+    log_info "Success — wireless debugging connected"
     echo
     echo -e "  ${GREEN}launchapp is ready to use.${NC}"
     echo "  Try: launchapp telegram debug"
   else
-    log_error "Connection failed."
-    echo
-    echo "  Make sure Wireless Debugging is enabled in Developer Options."
-    echo "  On Android 11+, you may need to pair first:"
-    echo "    Settings → Developer Options → Wireless Debugging → Pair with code"
-    echo "    Then run: adb pair localhost:PORT  (use the port shown on screen)"
+    log_error "Connection verification failed."
+    echo "  Device not found in 'adb devices' output."
+    return 1
   fi
   echo
 }
@@ -540,6 +576,9 @@ main() {
   local app_arg="" mode="launch" save_logs=false watch=false
   local remote=false connect_addr="" adb_device=""
 
+  # Clear any previous session state
+  unset LOCAL_DEVICE_ADB_ID TRANSPORT DEVICE_TYPE DEVICE_IP DEVICE_PORT DEVICE_ADB_ID
+
   [[ $# -eq 0 ]] && { print_usage; exit 0; }
 
   # ── Pre-pass: detect -r / --remote and grab connection flags ─────────────
@@ -555,15 +594,18 @@ main() {
       --connect=*)
         remote=true; connect_addr="${arg#--connect=}" ;;
       --connect)
-        remote=true; ((i++)) || true; connect_addr="${args[$i]:-}" ;;
+        remote=true; ((i++)) || true
+        [[ $i -lt ${#args[@]} ]] && connect_addr="${args[$i]}" || die "--connect requires an argument" ;;
       --adb=*)
         remote=true; adb_device="${arg#--adb=}" ;;
       --adb)
-        remote=true; ((i++)) || true; adb_device="${args[$i]:-}" ;;
+        remote=true; ((i++)) || true
+        [[ $i -lt ${#args[@]} ]] && adb_device="${args[$i]}" || die "--adb requires an argument" ;;
       --token=*)
         AGENT_TOKEN="${arg#--token=}" ;;
       --token)
-        ((i++)) || true; AGENT_TOKEN="${args[$i]:-}" ;;
+        ((i++)) || true
+        [[ $i -lt ${#args[@]} ]] && AGENT_TOKEN="${args[$i]}" || die "--token requires an argument" ;;
     esac
     ((i++)) || true
   done

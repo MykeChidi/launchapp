@@ -8,6 +8,19 @@
 
 TRANSPORT="adb"
 
+# Validate that DEVICE_ADB_ID is set
+if [[ -z "${DEVICE_ADB_ID:-}" ]]; then
+  echo >&2 "ERROR: DEVICE_ADB_ID not set. Cannot activate ADB transport."
+  exit 1
+fi
+
+# Verify device is in 'device' state
+if ! adb devices 2>/dev/null | grep -q "^${DEVICE_ADB_ID}.*device$"; then
+  echo >&2 "ERROR: Device '$DEVICE_ADB_ID' not found or not in 'device' state."
+  echo >&2 "        Run 'launchapp -r --adb $DEVICE_ADB_ID' to reconnect."
+  exit 1
+fi
+
 transport_am()      { adb -s "$DEVICE_ADB_ID" shell am "$@"; }
 transport_pm()      { adb -s "$DEVICE_ADB_ID" shell pm "$@"; }
 transport_logcat()  { adb -s "$DEVICE_ADB_ID" logcat "$@"; }

@@ -11,6 +11,12 @@
 
 TRANSPORT="agent"
 
+# Validate that required variables are set
+if [[ -z "${DEVICE_IP:-}" ]] || [[ -z "${DEVICE_PORT:-}" ]]; then
+  echo >&2 "ERROR: DEVICE_IP or DEVICE_PORT not set. Cannot activate agent transport."
+  exit 1
+fi
+
 # ── Connection state ──────────────────────────────────────────────────────────
 _AGENT_CONSECUTIVE_FAILURES=0
 _AGENT_MAX_FAILURES=3   # warn after this many consecutive timeouts

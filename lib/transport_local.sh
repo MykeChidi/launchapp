@@ -1,18 +1,30 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # =============================================================================
-# lib/transport_local.sh — Local transport via ADB loopback
+# lib/transport_local.sh — Local transport via wireless debugging
 #
-# Routes all commands through `adb shell` against localhost:5555.
-# This gives full pm/dumpsys/am permissions on any Android version/OEM
-# without requiring root, avoiding the shell permission restrictions that
-# affect direct Termux commands on Android 12+.
+# Routes all commands through `adb shell` using the device's real network IP
+# that was paired via wireless debugging. This gives full pm/dumpsys/am 
+# permissions on any Android version/OEM without requiring root.
 #
-# Setup (done once by activate_local_transport):
-#   adb connect localhost:5555
+# Setup (done once by _setup_local_adb):
+#   adb pair IP:PORT <pairing_code>
+#   adb connect IP:PORT
+#
+# The device IP:port is detected dynamically and stored in LOCAL_DEVICE_ADB_ID
 # =============================================================================
 
 TRANSPORT="local"
-DEVICE_ADB_ID="localhost:5555"
+# Dynamically detect the device IP:port from adb devices
+# Falls back to environment variable if set, otherwise errors
+DEVICE_ADB_ID="${LOCAL_DEVICE_ADB_ID:-}"
+
+if [[ -z "$DEVICE_ADB_ID" ]]; then
+  DEVICE_ADB_ID=$(adb devices 2>/dev/null | grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+.*device$" | awk '{print $1}' | head -1)
+  if [[ -z "$DEVICE_ADB_ID" ]]; then
+    echo >&2 "ERROR: No wireless ADB device found. Run 'launchapp setup' first."
+    exit 1
+  fi
+fi
 
 transport_am()      { adb -s "$DEVICE_ADB_ID" shell am "$@" 2>/dev/null; }
 transport_pm()      { adb -s "$DEVICE_ADB_ID" shell pm "$@" 2>/dev/null; }

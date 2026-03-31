@@ -282,15 +282,53 @@ def get_running_processes() -> list[dict[str, Any]]:
 
 
 def find_main_activity(package: str) -> str:
+    """
+    Find the main launcher activity for a package.
+    Uses multiple strategies since pm dump output varies across Android versions.
+    """
     dump = run_cmd(["pm", "dump", package])
+    if not dump:
+        return ""
+    
+    lines = dump.splitlines()
+    
+    # Strategy 1: Find MAIN block, then scan for line with package/activity pattern
     found_main = False
-    for line in dump.splitlines():
+    for i, line in enumerate(lines):
         if "android.intent.action.MAIN" in line:
             found_main = True
-        if found_main and package in line:
-            parts = line.strip().split()
-            if parts:
-                return parts[-1]
+        if found_main:
+            # Look for pkg/activity pattern: word containing / with package in it
+            for word in line.split():
+                if "/" in word and package in word:
+                    return word
+            # If found a line with package after MAIN but no /, check next few lines
+            if found_main and package in line:
+                for word in line.split():
+                    if "/" in word:
+                        return word
+                # Also check following lines for pkg/activity
+                for next_line in lines[i+1:i+3]:
+                    for word in next_line.split():
+                        if "/" in word and package in word:
+                            return word
+    
+    # Strategy 2: Look for launchMode= pattern (Android 14+)
+    escaped_pkg = package.replace(".", r"\.")
+    for line in lines:
+        if "launchMode=" in line:
+            # Next or nearby line might have the activity
+            for word in line.split():
+                if package in word and "/" in word:
+                    return word
+    
+    # Strategy 3: Fall back to searching for any pkg/activity pattern
+    for line in lines:
+        if "Activity{" in line or ".MainActivity" in line:
+            for word in line.split():
+                if "/" in word and package in word:
+                    return word
+    
     return ""
 
 
