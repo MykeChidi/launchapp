@@ -4,8 +4,8 @@
 # Depends on: lib/constants.sh
 # =============================================================================
 
-log_info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_info()  { echo -e "${GREEN}[INFO]${NC}  $*" >&2; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*" >&2; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 log_debug() { [[ "${LAUNCHAPP_DEBUG:-0}" == "1" ]] && echo -e "${PURPLE}[DEBUG]${NC} $*" >&2 || true; }
 

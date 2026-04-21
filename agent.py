@@ -303,9 +303,9 @@ def find_main_activity(package: str) -> str:
                 if "/" in word and package in word:
                     return word
             # If found a line with package after MAIN but no /, check next few lines
-            if found_main and package in line:
+            if package in line:
                 for word in line.split():
-                    if "/" in word:
+                    if "/" in word and package in word:
                         return word
                 # Also check following lines for pkg/activity
                 for next_line in lines[i+1:i+3]:
@@ -584,7 +584,10 @@ class AgentHandler(http.server.BaseHTTPRequestHandler):
             if not activity:
                 self.send_error_json(404, f"Main activity not found for {pkg}")
                 return
-            run_async(["am", "start", "-n", activity, "-W"])
+            result = run_cmd(["am", "start", "-n", activity, "-W"], timeout=15.0)
+            if any(kw in result for kw in ("Error", "Exception", "unable", "does not exist")):
+                self.send_error_json(500, f"am start failed: {result[:300]}")
+                return
             self.send_json({"launched": pkg, "activity": activity})
 
         elif path.startswith("/kill/"):

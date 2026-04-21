@@ -215,7 +215,7 @@ logcat_stream_cmd() {
   # Pass pkg as an explicit env var prefix in the generated string so the
   # transport_cmd for agent builds its curl URL from the right package,
   # independent of whatever TRANSPORT_LOGCAT_PKG was last set to.
-  TRANSPORT_LOGCAT_PKG="$pkg" transport_cmd logcat "$extra_flags" "$pkg"
+  TRANSPORT_LOGCAT_PKG="$pkg" transport_cmd logcat "$pkg" "$extra_flags"
 }
 
 am_start_cmd()  { transport_cmd am start -n "$1" -W; }

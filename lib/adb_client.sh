@@ -30,8 +30,11 @@ adb_reconnect() {
 adb_find_activity() {
   local pkg="$1"
   local activity
+  local esc_pkg="${pkg//./\\.}"
   activity=$(adb_shell pm dump "$pkg" 2>/dev/null \
-    | awk '/android\.intent\.action\.MAIN/{f=1} f && /'"$pkg"'/{print $2; exit}')
+    | awk '/android\.intent\.action\.MAIN/{f=1} f && /'"${esc_pkg}"'\// {
+        for(i=1;i<=NF;i++) if($i ~ /'"${esc_pkg}"'\//) {print $i; exit}
+    }')
   [[ -n "$activity" ]] && echo "$activity" || return 1
 }
 

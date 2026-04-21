@@ -420,7 +420,7 @@ show_scan_menu() {
     echo "  0. Exit"
     echo
     read -rp "Choice: " choice
-    local init_devices 2>/dev/null; init_devices 2>/dev/null || true
+    init_devices 2>/dev/null || true
     case "$choice" in
       1) scan_network && activate_remote_transport && show_remote_menu ;;
       2) select_device && activate_remote_transport && show_remote_menu ;;
@@ -475,13 +475,21 @@ _setup_local_adb() {
   fi
   sleep 1
   
-  # Extract just the IP:port for connection (remove any extraneous info from pair output)
-  local connect_addr="${device_addr}"
-  
+ # Pairing port ≠ connection port on Android 11+.
+  # After pairing, the Wireless Debugging main screen shows the connection port separately.
+  local conn_ip="${device_addr%%:*}"
+  echo
+  read -rp "  Enter the connection port now shown under 'Wireless Debugging' (e.g., 45678): " conn_port
+  if ! [[ "$conn_port" =~ ^[0-9]+$ ]]; then
+    log_error "Invalid port number."
+    return 1
+  fi
+  local connect_addr="${conn_ip}:${conn_port}"
+
   # Now connect to the device
   log_info "Connecting to $connect_addr…"
   if ! adb connect "$connect_addr" 2>&1 | grep -q "connected\|already"; then
-    log_error "Connection failed."
+    log_error "Connection failed. Ensure Wireless Debugging is still enabled and authorize on device."
     return 1
   fi
   sleep 1

@@ -71,6 +71,6 @@ mode_crash() {
         do_launch "$app_string" 2>/dev/null || true
       fi
     fi
-  done < <(transport_logcat "*:E *:F" \
+  done < <(transport_logcat "*:E" "*:F" \
     | grep --line-buffered -E "FATAL|ANR in|AndroidRuntime|${safe_pkg}")
 }

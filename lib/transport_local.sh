@@ -42,5 +42,14 @@ transport_shell()   { adb -s "$DEVICE_ADB_ID" shell "$@"; }
 transport_cmd() {
   # Usage: transport_cmd am start -n foo/bar
   # Prints a shell command string that pane_run can send
-  printf 'adb -s %s shell %s' "$DEVICE_ADB_ID" "$*"
+  local subcmd="$1"; shift
+  case "$subcmd" in
+    logcat)
+      local _pkg="$1"; shift  # pkg arg used by agent transport; not a valid logcat flag
+      printf 'adb -s %s shell logcat %s' "$DEVICE_ADB_ID" "$*"
+      ;;
+    *)
+      printf 'adb -s %s shell %s %s' "$DEVICE_ADB_ID" "$subcmd" "$*"
+      ;;
+  esac
 }
